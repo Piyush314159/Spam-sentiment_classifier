@@ -26,7 +26,7 @@ By the end you will have:
 ```
 spam-classifier/
 ├── data/
-│   └── sms.tsv                  # raw dataset (download separately)
+│   └── SMSSpamCollection        # UTF-8 text, tab-separated, no header
 ├── notebooks/
 │   └── exploration.ipynb        # EDA — class balance, word frequencies, length dist.
 ├── src/
@@ -86,13 +86,53 @@ You compute both from scratch using the trapezoidal rule, no sklearn.
 
 ## Dataset
 
-Download from UCI or Kaggle:
-```
-https://archive.ics.uci.edu/ml/datasets/SMS+Spam+Collection
-```
-Save to `data/sms.tsv`. It's tab-separated with two columns: `label` (ham/spam) and `message`.
+### The file you have: `SMSSpamCollection`
 
-**Class balance heads-up:** ~87% ham, ~13% spam. If your model just predicts ham every time it gets 87% accuracy. Watch F1, not raw accuracy.
+The dataset is a plain **UTF-8 text file** — no `.csv`, no `.tsv` extension, no header row.
+Each line is one message, tab-separated into exactly two columns:
+
+```
+ham    Go until jurong point, crazy.. Available only in bugis n great world...
+spam   Free entry in 2 a wkly comp to win FA Cup final tkts 21st May 2005...
+```
+
+To load it in pandas:
+```python
+pd.read_csv('data/SMSSpamCollection', sep='\t', header=None, names=['label', 'message'])
+```
+
+No extension needed — just point at the file directly.
+
+### Where it comes from
+
+The **SMS Spam Collection v.1** was compiled by Tiago Agostinho de Almeida and José María Gómez Hidalgo from four sources:
+
+- **425 spam messages** scraped manually from [Grumbletext](http://www.grumbletext.co.uk/) — a UK forum where users publicly reported spam texts
+- **450 ham messages** from Caroline Tagg's PhD thesis on SMS linguistics
+- **3,375 ham messages** from the NUS SMS Corpus at the National University of Singapore — real messages from students, collected with consent
+- **1,002 ham + 322 spam** from the SMS Spam Corpus v.0.1 by Gómez Hidalgo
+
+### Stats
+
+| Class | Count | Percentage |
+|-------|-------|------------|
+| Ham (legitimate) | 4,827 | 86.6% |
+| Spam | 747 | 13.4% |
+| **Total** | **5,574** | |
+
+**Class balance heads-up:** 86.6% of messages are ham. A model that predicts ham for everything scores 86.6% accuracy while catching zero spam. This is why you use **F1**, not accuracy.
+
+### Citation
+
+If you use this dataset in any published work:
+
+> Almeida, T.A., Gómez Hidalgo, J.M., Yamakami, A. *Contributions to the study of SMS Spam Filtering: New Collection and Results.* Proceedings of the 2011 ACM Symposium on Document Engineering (ACM DOCENG'11), Mountain View, CA, USA, 2011.
+
+### License
+
+Free for research use. The corpus is provided as-is with no warranty.
+Copyright © Tiago Agostinho de Almeida and José María Gómez Hidalgo.
+If you use it, drop a note to tiago@dt.fee.unicamp.br — it's a courtesy they ask for.
 
 ---
 
