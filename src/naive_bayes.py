@@ -52,7 +52,7 @@ class NaiveBayes:
         - Convert log-posteriors to probabilities via softmax or by exponentiating
         - Return array of shape (n_docs,) with P(spam | doc)
         """
-        log_scores = X @ self.log_likelyhood.T + log_prior
+        log_scores = X @ self.log_likelyhood.T + self.log_prior
 
         exp_scores = np.exp(log_scores-log_scores.max(axis= 1, keepdims=True))     # stability trick
         """

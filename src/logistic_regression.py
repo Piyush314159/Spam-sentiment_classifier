@@ -34,8 +34,8 @@ class LogisticRegression:
         - Clip y_hat away from 0 and 1 to avoid log(0)
         - Return scalar loss
         """
-        y_hat = np.clip(y_hat, 1e-15, 1+1e-15)
-        return -(np.mean(y * np.log(y_hat) + (1-y) * np.log(1- y_hat)))
+        y_hat = np.clip(y_hat, 1e-15, 1 - 1e-15)
+        return -(np.mean(y * np.log(y_hat) + (1-y) * np.log(1 - y_hat)))
 
     def fit(self, X, y):
         """
