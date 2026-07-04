@@ -173,21 +173,29 @@ def plot_roc(fpr_nb, tpr_nb, auc_nb, fpr_lr, tpr_lr, auc_lr, save_path):
     print(f"[plot_roc] saved → {save_path}")
 
 
-def plot_loss_curve(loss_history, save_path):
+def plot_loss_curve(loss_history, save_path, val_loss_history=None):
     """
     Plot the logistic regression training loss over iterations.
-    - x-axis: iteration,  y-axis: binary cross-entropy
+    - x-axis: iteration,  y-axis: binary cross-entropy (+ L2 penalty)
+    - If val_loss_history is provided, overlay it to diagnose overfitting
     - Useful for spotting if learning rate is too high or too low
     - Save figure to save_path
     """
     fig, ax = plt.subplots(figsize=(6, 4))
 
     iterations = np.arange(1, len(loss_history) + 1)
-    ax.plot(iterations, loss_history, color='darkorange', lw=2)
+    ax.plot(iterations, loss_history, color='darkorange', lw=2,
+            label='Train loss')
+
+    if val_loss_history is not None:
+        val_iters = np.arange(1, len(val_loss_history) + 1)
+        ax.plot(val_iters, val_loss_history, color='steelblue', lw=2,
+                linestyle='--', label='Test loss')
+        ax.legend(fontsize=10)
 
     ax.set_xlabel('Iteration', fontsize=12)
-    ax.set_ylabel('Binary Cross-Entropy Loss', fontsize=12)
-    ax.set_title('Logistic Regression — Training Loss', fontsize=13)
+    ax.set_ylabel('Loss (BCE + L2)', fontsize=12)
+    ax.set_title('Logistic Regression — Train vs Test Loss', fontsize=13)
     ax.grid(True, alpha=0.3)
 
     fig.tight_layout()

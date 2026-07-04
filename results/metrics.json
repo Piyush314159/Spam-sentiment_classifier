@@ -1,0 +1,16 @@
+{
+  "naive_bayes": {
+    "precision": 0.9924,
+    "recall": 0.9097,
+    "f1": 0.9493,
+    "auc": 0.9786,
+    "best_threshold": 0.7762
+  },
+  "logistic_regression": {
+    "precision": 0.8113,
+    "recall": 0.8958,
+    "f1": 0.8515,
+    "auc": 0.9812,
+    "best_threshold": 0.1598
+  }
+}

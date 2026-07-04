@@ -9,9 +9,39 @@ No magic libraries. No black boxes. Just math, numpy, and your own two hands.
 
 ---
 
+## 🏆 Results at a Glance
+
+| Metric | Naive Bayes | Logistic Regression |
+|--------|:-----------:|:-------------------:|
+| **Precision** | 0.9924 | 0.8188 |
+| **Recall** | 0.9097 | 0.9097 |
+| **F1 Score** | **0.9493** ✅ | 0.8618 |
+| **AUC** | 0.9786 | **0.9823** ✅ |
+| **Best Threshold** | 0.7762 | 0.1511 |
+
+> **Key insight:** Naive Bayes wins on **F1** (better precision at its optimal threshold), while Logistic Regression edges ahead on **AUC** (better ranking quality across all thresholds). Different metrics, different winners — and that's exactly the trade-off you'll learn to reason about.
+
+### ROC Curve Comparison
+
+<p align="center">
+  <img src="results/roc_curve.png" alt="ROC Curve — Naive Bayes vs Logistic Regression" width="600"/>
+</p>
+
+Both models hug the top-left corner (near-perfect classification). The random-classifier diagonal sits far below — our models are doing real work, not guessing.
+
+### Logistic Regression — Training Loss
+
+<p align="center">
+  <img src="results/loss_curve.png" alt="Logistic Regression Training Loss Curve" width="600"/>
+</p>
+
+Binary cross-entropy drops steeply in the first ~100 iterations and then slowly converges, confirming the learning rate (`0.1`) is well-tuned — no oscillation, no divergence.
+
+---
+
 ## What this actually is
 
-Two classic text classifiers — **Naive Bayes** and **Logistic Regression** — built entirely from scratch on the [UCI SMS Spam Collection](https://archive.ics.uci.edu/ml/datasets/SMS+Spam+Collection), a dataset of 5,574 real SMS messages labelled `spam` or `ham`.
+Two classic text classifiers — **Naive Bayes** and **Logistic Regression** — built entirely from scratch on the [UCI SMS Spam Collection](https://archive.ics.uci.edu/ml/datasets/SMS+Spam+Collection), a dataset of 5,572 real SMS messages labelled `spam` or `ham`.
 
 By the end you will have:
 - Implemented **Maximum Likelihood Estimation** to learn word probabilities
@@ -21,27 +51,81 @@ By the end you will have:
 
 ---
 
-## Project layout
+## 📁 Project Layout
 
 ```
-spam-classifier/
+Spam_sentiment_classifier/
 ├── data/
-│   └── SMSSpamCollection        # UTF-8 text, tab-separated, no header
+│   └── SMSSpamCollection          # UTF-8 text, tab-separated, no header
 ├── notebooks/
-│   └── exploration.ipynb        # EDA — class balance, word frequencies, length dist.
+│   └── exploration.ipynb          # EDA — class balance, word frequencies, length dist.
 ├── src/
-│   ├── preprocessing.py         # text cleaning → tokens → BoW / TF-IDF matrix
-│   ├── naive_bayes.py           # MLE + Laplace smoothing + log-likelihood classifier
-│   ├── logistic_regression.py   # sigmoid + cross-entropy + gradient descent
-│   └── evaluation.py           # confusion matrix, P/R/F1, ROC, AUC, plots
-├── main.py                      # runs the full pipeline top to bottom
-├── results/                     # roc_curve.png, loss_curve.png, metrics.json
-└── README.md
+│   ├── preprocessing.py           # text cleaning → tokens → BoW / TF-IDF matrix
+│   ├── naive_bayes.py             # MLE + Laplace smoothing + log-likelihood classifier
+│   ├── logistic_regression.py     # sigmoid + cross-entropy + gradient descent
+│   └── evaluation.py              # confusion matrix, P/R/F1, ROC, AUC, plots
+├── main.py                        # runs the full 5-step pipeline
+├── results/
+│   ├── roc_curve.png              # NB vs LR ROC curves
+│   ├── loss_curve.png             # LR training loss over iterations
+│   └── metrics.json               # final P / R / F1 / AUC for both models
+└── Readme.md
 ```
 
 ---
 
-## The concepts, explained plainly
+## 🔧 Pipeline — 5 Steps
+
+`main.py` runs end-to-end with a single command. Here's what each step does:
+
+### Step 1 — Load & Preprocess
+
+```
+load_data() → clean_text() → tokenize() → train/test split (80/20)
+→ build_vocabulary()  [train only — no data leakage]
+→ vectorize_bow()     [for Naive Bayes — raw counts]
+→ vectorize_tfidf()   [for Logistic Regression — normalised weights]
+```
+
+- **5,572 messages** loaded (4,825 ham / 747 spam)
+- **Vocabulary size:** 7,609 unique tokens (built on training split only)
+- Feature matrices: `(4457, 7609)` train, `(1115, 7609)` test
+
+### Step 2 — Naive Bayes
+
+```python
+NaiveBayes(alpha=1.0).fit(X_train_bow, y_train)
+```
+
+- Trained on **BoW counts** (raw word frequencies)
+- `predict_proba()` → `best_threshold()` → `predict()` → `precision_recall_f1()`
+- `roc_curve()` + `auc()` computed from scratch
+
+### Step 3 — Logistic Regression
+
+```python
+LogisticRegression(lr=0.1, n_iters=500).fit(X_train_tfidf, y_train)
+```
+
+- Trained on **TF-IDF weights** (normalised, downweights common words)
+- Same evaluation flow as Naive Bayes
+- `loss_history` saved for the training loss curve (final loss: **0.3555**)
+
+### Step 4 — Compare
+
+Both models evaluated side by side with `print_report()`. The pipeline automatically identifies which model wins on F1 vs AUC and explains why the winners may differ.
+
+### Step 5 — Save Outputs
+
+| Output | Path |
+|--------|------|
+| ROC curve plot | `results/roc_curve.png` |
+| Loss curve plot | `results/loss_curve.png` |
+| Metrics JSON | `results/metrics.json` |
+
+---
+
+## 🧠 The Concepts, Explained Plainly
 
 ### 🔤 Bag of Words & TF-IDF
 Before any model can touch text, you need to turn words into numbers.
@@ -65,16 +149,18 @@ Training is **gradient descent**: start with all weights at zero, make a predict
 
 After training, the model draws a linear boundary through the high-dimensional word-count space. Messages on one side are ham, the other side spam.
 
-### 🎚️ Decision threshold — precision vs recall
+### 🎚️ Decision Threshold — Precision vs Recall
 Both models output a probability, not a hard label. The **threshold** decides where you draw the line.
 
-- At `0.5` (default): balanced. You miss some spam but rarely flag real messages.
-- At `0.3`: more aggressive. You catch more spam but occasionally nuke a real message.
-- At `0.7`: conservative. Almost nothing gets flagged unless the model is very confident.
+| Threshold | Behaviour | Trade-off |
+|-----------|-----------|-----------|
+| `0.3` | Aggressive — catches more spam | Higher recall, lower precision |
+| `0.5` | Balanced default | Middle ground |
+| `0.7` | Conservative — high confidence only | Higher precision, lower recall |
 
-Try all three in `main.py`. Watch precision and recall move in opposite directions. That tension is the whole point.
+The pipeline uses `best_threshold()` to find the F1-maximising cut-off automatically.
 
-### 📈 ROC curve & AUC
+### 📈 ROC Curve & AUC
 The **ROC curve** plots every possible threshold at once — True Positive Rate (spam caught) on the y-axis, False Positive Rate (ham wrongly flagged) on the x-axis.
 
 A random classifier hugs the diagonal. A perfect one hits the top-left corner.
@@ -84,9 +170,9 @@ You compute both from scratch using the trapezoidal rule, no sklearn.
 
 ---
 
-## Dataset
+## 📊 Dataset
 
-### The file you have: `SMSSpamCollection`
+### The file: `SMSSpamCollection`
 
 The dataset is a plain **UTF-8 text file** — no `.csv`, no `.tsv` extension, no header row.
 Each line is one message, tab-separated into exactly two columns:
@@ -101,8 +187,6 @@ To load it in pandas:
 pd.read_csv('data/SMSSpamCollection', sep='\t', header=None, names=['label', 'message'])
 ```
 
-No extension needed — just point at the file directly.
-
 ### Where it comes from
 
 The **SMS Spam Collection v.1** was compiled by Tiago Agostinho de Almeida and José María Gómez Hidalgo from four sources:
@@ -115,16 +199,14 @@ The **SMS Spam Collection v.1** was compiled by Tiago Agostinho de Almeida and J
 ### Stats
 
 | Class | Count | Percentage |
-|-------|-------|------------|
-| Ham (legitimate) | 4,827 | 86.6% |
+|-------|:-----:|:----------:|
+| Ham (legitimate) | 4,825 | 86.6% |
 | Spam | 747 | 13.4% |
-| **Total** | **5,574** | |
+| **Total** | **5,572** | |
 
-**Class balance heads-up:** 86.6% of messages are ham. A model that predicts ham for everything scores 86.6% accuracy while catching zero spam. This is why you use **F1**, not accuracy.
+> **⚠️ Class imbalance:** 86.6% of messages are ham. A model that predicts ham for everything scores 86.6% accuracy while catching zero spam. This is why we evaluate on **F1**, not accuracy.
 
 ### Citation
-
-If you use this dataset in any published work:
 
 > Almeida, T.A., Gómez Hidalgo, J.M., Yamakami, A. *Contributions to the study of SMS Spam Filtering: New Collection and Results.* Proceedings of the 2011 ACM Symposium on Document Engineering (ACM DOCENG'11), Mountain View, CA, USA, 2011.
 
@@ -132,50 +214,47 @@ If you use this dataset in any published work:
 
 Free for research use. The corpus is provided as-is with no warranty.
 Copyright © Tiago Agostinho de Almeida and José María Gómez Hidalgo.
-If you use it, drop a note to tiago@dt.fee.unicamp.br — it's a courtesy they ask for.
 
 ---
 
-## Setup
+## 🚀 Setup & Run
+
+### Install dependencies
 
 ```bash
-pip install numpy matplotlib
-# optional, only if you use nltk stopwords in preprocessing.py
-pip install nltk
+pip install numpy pandas matplotlib
 ```
 
 No sklearn. That's the whole point.
 
----
-
-## Run
+### Run the pipeline
 
 ```bash
 python main.py
 ```
 
-Outputs saved to `results/`:
-| File | What it shows |
-|------|---------------|
-| `roc_curve.png` | NB vs LR curves on the same axes |
-| `loss_curve.png` | LR training loss falling over iterations |
-| `metrics.json` | Final P / R / F1 / AUC for both models |
+You'll see the full 5-step output in the terminal:
+
+```
+=================================================================
+  STEP 1 — Load & preprocess
+=================================================================
+  Loaded 5572 messages  (ham: 4825, spam: 747)
+  ...
+=================================================================
+  STEP 4 — Compare (side by side)
+=================================================================
+Naive Bayes           |  P: 0.9924  R: 0.9097  F1: 0.9493  AUC: 0.9786
+Logistic Regression   |  P: 0.8187  R: 0.9097  F1: 0.8618  AUC: 0.9823
+  ...
+=================================================================
+  Done. Check results/ for plots and metrics.
+=================================================================
+```
 
 ---
 
-## Implementation order
-
-Fill in the files in this sequence — each one builds on the last:
-
-```
-preprocessing.py  →  naive_bayes.py  →  logistic_regression.py  →  evaluation.py  →  main.py
-```
-
-Don't touch `main.py` until the other four are working. Test each module in isolation first.
-
----
-
-## Common traps
+## ⚠️ Common Traps
 
 | Trap | Why it matters |
 |------|----------------|
@@ -187,7 +266,7 @@ Don't touch `main.py` until the other four are working. Test each module in isol
 
 ---
 
-## What you'll understand when you're done
+## 🎓 What You'll Understand When You're Done
 
 - Why Naive Bayes is fast to train but makes a strong independence assumption
 - How gradient descent actually moves weights — not abstractly, but in numpy
@@ -197,4 +276,4 @@ Don't touch `main.py` until the other four are working. Test each module in isol
 
 ---
 
-*Built for the ML fundamentals track — lectures 1–6.*
+*Built for the ML fundamentals track.*

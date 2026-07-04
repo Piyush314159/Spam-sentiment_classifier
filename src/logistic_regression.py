@@ -1,22 +1,29 @@
 """
 logistic_regression.py — Logistic regression trained with gradient descent. No sklearn.
+
+Supports:
+  - L2 regularisation (weight decay) to prevent overfitting on high-dim sparse data
+  - Optional validation loss tracking to diagnose overfitting vs underfitting
 """
 import numpy as np
 
 
 class LogisticRegression:
 
-    def __init__(self, lr=0.01, n_iters=1000):
+    def __init__(self, lr=0.01, n_iters=1000, lambda_=0.0):
         """
         lr       : learning rate
         n_iters  : number of gradient descent steps
+        lambda_  : L2 regularisation strength (0 = no regularisation)
         Store weights, bias, and loss_history list after fit().
         """
         self.lr = lr
         self.n_iters = n_iters
+        self.lambda_ = lambda_
         self.weights = None         # w--> weights
         self.bias = None            # b--->bias
         self.loss_history = None
+        self.val_loss_history = None
 
     def _sigmoid(self, z):
         """
@@ -32,35 +39,53 @@ class LogisticRegression:
         Binary cross-entropy loss averaged over the batch.
         - L = -mean[ y*log(y_hat) + (1-y)*log(1-y_hat) ]
         - Clip y_hat away from 0 and 1 to avoid log(0)
-        - Return scalar loss
+        - Return scalar loss (without L2 penalty — that's added separately)
         """
         y_hat = np.clip(y_hat, 1e-15, 1 - 1e-15)
         return -(np.mean(y * np.log(y_hat) + (1-y) * np.log(1 - y_hat)))
 
-    def fit(self, X, y):
+    def fit(self, X, y, X_val=None, y_val=None):
         """
-        Train weights via batch gradient descent.
+        Train weights via batch gradient descent with optional L2 regularisation.
         - Initialise weights to zeros, bias to 0
         - Each iteration:
             · forward pass  → sigmoid(X @ w + b)
             · compute and store loss in self.loss_history
-            · gradients:    dw = X.T @ (y_hat - y) / n,  db = mean(y_hat - y)
+            · if validation data provided, compute and store val loss
+            · gradients:    dw = X.T @ (y_hat - y) / n + lambda_ * w
+            ·               db = mean(y_hat - y)
             · update:       w -= lr * dw,  b -= lr * db
         - Return self so you can chain .fit().predict()
         """
         self.weights = np.zeros(X.shape[1])
         self.bias = 0
         self.loss_history = []
+        self.val_loss_history = [] if X_val is not None else None
+
+        n = len(y)
 
         for i in range(self.n_iters):
+            # Forward pass
             y_hat = self._sigmoid(X @ self.weights + self.bias)
-            loss = self._loss(y, y_hat)
+
+            # Training loss (BCE + L2 penalty)
+            bce = self._loss(y, y_hat)
+            l2_penalty = (self.lambda_ / 2) * np.sum(self.weights ** 2)
+            loss = bce + l2_penalty
             self.loss_history.append(loss)
 
-            n = len(y)
-            dw = X.T @ (y_hat - y) / n
+            # Validation loss (if provided)
+            if X_val is not None:
+                y_hat_val = self._sigmoid(X_val @ self.weights + self.bias)
+                val_bce = self._loss(y_val, y_hat_val)
+                # Val loss includes L2 too, so train vs val gap reflects pure fit
+                self.val_loss_history.append(val_bce + l2_penalty)
+
+            # Gradients with L2 regularisation
+            dw = X.T @ (y_hat - y) / n + self.lambda_ * self.weights
             db = np.mean(y_hat - y)
 
+            # Update
             self.weights -= self.lr * dw
             self.bias -= self.lr * db
 
