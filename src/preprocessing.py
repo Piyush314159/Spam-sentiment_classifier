@@ -121,7 +121,7 @@ def train_test_split(X, y, test_size=0.2, seed=42):
     - Use test_size fraction for the test set
     - Return X_train, X_test, y_train, y_test
     """
-    X, y = np.array(X), np.array(y)
+    X, y = np.array(X, dtype=object), np.array(y)
     rng = np.random.default_rng(seed)
     indices = rng.permutation(len(y))
     split = int(len(y) * (1- test_size))

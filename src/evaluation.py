@@ -3,7 +3,6 @@ evaluation.py — All metrics and plots. Only numpy + matplotlib. No sklearn met
 """
 import numpy as np
 import matplotlib.pyplot as plt
-import pylab as p
 
 
 def confusion_matrix(y_true, y_pred):
