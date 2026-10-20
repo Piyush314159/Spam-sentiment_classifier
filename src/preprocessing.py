@@ -1,5 +1,16 @@
 """
 preprocessing.py — Converts raw SMS text into a numeric matrix ready for modelling.
+
+Public API
+----------
+load_data(filepath)                    → (texts, labels)
+clean_text(text)                       → str
+tokenize(text)                         → list[str]
+build_vocabulary(tokenized_corpus)     → dict[str, int]
+vectorize_bow(tokenized_docs, vocab)   → np.ndarray  (n_docs, vocab_size)
+fit_tfidf(bow_matrix)                  → np.ndarray  (vocab_size,)  ← IDF vector
+transform_tfidf(bow_matrix, idf)       → np.ndarray  (n_docs, vocab_size)
+train_test_split(X, y, ...)            → X_train, X_test, y_train, y_test
 """
 import pandas as pd
 import numpy as np
@@ -81,36 +92,51 @@ def vectorize_bow(tokenized_docs, vocab):
     - Use numpy only, no sklearn
     - Return numpy array
     """
-    n_docs = len(tokenized_docs)            #row
-    vocab_size = len(vocab)                 #coloumn
+    n_docs = len(tokenized_docs)            # rows
+    vocab_size = len(vocab)                 # columns
     bow = np.zeros((n_docs, vocab_size))
-    for i,doc in enumerate(tokenized_docs):
+    for i, doc in enumerate(tokenized_docs):
         counts = Counter(doc)
         for word, count in counts.items():
             if word in vocab:
-                bow[i,vocab[word]] = count  # so it add the count in particular message and for specific word
-                #   message, word
+                bow[i, vocab[word]] = count  # count of word j in message i
     return bow
 
 
 
-def vectorize_tfidf(bow_matrix):
+def fit_tfidf(bow_matrix):
     """
-    Transform a raw BoW count matrix into TF-IDF weights.
-    - TF  = count / total tokens in document
-    - IDF = log(N / df)  where df = number of docs containing the word
-    - Multiply TF × IDF element-wise
-    - Return numpy array of same shape
+    Compute IDF weights from a training BoW matrix.
+    Must be called on TRAINING data only — never on test data.
+
+    - IDF = log(N / (df + 1))  where df = number of docs containing the word
+      (+1 smoothing prevents division-by-zero for words absent in every doc)
+    - Return 1-D numpy array of shape (vocab_size,)
+
+    Usage
+    -----
+    idf = fit_tfidf(X_train_bow)
+    X_train_tfidf = transform_tfidf(X_train_bow, idf)
+    X_test_tfidf  = transform_tfidf(X_test_bow,  idf)   # same idf — no leakage
     """
     n_docs = bow_matrix.shape[0]
+    df = (bow_matrix > 0).sum(axis=0)       # document frequency per word
+    idf = np.log(n_docs / (df + 1))         # inverse document frequency
+    return idf
 
+
+def transform_tfidf(bow_matrix, idf):
+    """
+    Apply a pre-fitted IDF vector to a BoW count matrix.
+    Safe to call on both training and test data with the *same* idf.
+
+    - TF  = count / total tokens in document  (row-normalised)
+    - TF-IDF = TF × IDF
+    - Return numpy array of same shape as bow_matrix
+    """
     row_totals = bow_matrix.sum(axis=1, keepdims=True)
-    row_totals[row_totals==0] = 1
-    tf = bow_matrix / row_totals            #term frequency
-
-    df = (bow_matrix > 0).sum(axis = 0)     #doc ferquency or how many message conatins this word
-    idf = np.log(n_docs / (df+1))           #inverse doc frequency
-
+    row_totals[row_totals == 0] = 1          # avoid division by zero for empty docs
+    tf = bow_matrix / row_totals             # term frequency
     return tf * idf
 
 
@@ -129,18 +155,31 @@ def train_test_split(X, y, test_size=0.2, seed=42):
     return X[train_idx], X[test_idx], y[train_idx], y[test_idx]
 
 if __name__ == '__main__':
-    texts, labels = load_data('/Users/piyushmaji/Desktop/ML_Project/Spam_sentiment_classifier/data/SMSSpamCollection')
+    import os
+    _data_path = os.path.join(os.path.dirname(__file__), '..', 'data', 'SMSSpamCollection')
+    texts, labels = load_data(_data_path)
     print(f"Loaded {len(texts)} messages")
 
-    cleaned = [clean_text(t) for t in texts]
-    tokenized = [tokenize(t) for t in cleaned]
-    vocab = build_vocabulary(tokenized)
-    print(f"Vocabulary size: {len(vocab)}")
-
-    bow = vectorize_bow(tokenized, vocab)
-    tfidf = vectorize_tfidf(bow)
-    print(f"BoW shape: {bow.shape}, TF-IDF shape: {tfidf.shape}")
+    cleaned   = [clean_text(t)  for t in texts]
+    tokenized = [tokenize(t)    for t in cleaned]
 
     y = np.array(labels)
-    X_train, X_test, y_train, y_test = train_test_split(tfidf, y)
-    print(f"Train: {X_train.shape}, Test: {X_test.shape}")
+    tok_arr = np.array(tokenized, dtype=object)
+    rng = np.random.default_rng(42)
+    idx = rng.permutation(len(y))
+    split = int(len(y) * 0.8)
+    tok_train = tok_arr[idx[:split]].tolist()
+    tok_test  = tok_arr[idx[split:]].tolist()
+    y_train, y_test = y[idx[:split]], y[idx[split:]]
+
+    vocab = build_vocabulary(tok_train)
+    print(f"Vocabulary size: {len(vocab)}")
+
+    X_train_bow = vectorize_bow(tok_train, vocab)
+    X_test_bow  = vectorize_bow(tok_test,  vocab)
+
+    idf = fit_tfidf(X_train_bow)
+    X_train_tfidf = transform_tfidf(X_train_bow, idf)
+    X_test_tfidf  = transform_tfidf(X_test_bow,  idf)
+    print(f"BoW shape: {X_train_bow.shape},  TF-IDF shape: {X_train_tfidf.shape}")
+    print(f"Test  BoW: {X_test_bow.shape},   TF-IDF test:  {X_test_tfidf.shape}")

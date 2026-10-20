@@ -10,20 +10,31 @@ import numpy as np
 
 class LogisticRegression:
 
-    def __init__(self, lr=0.01, n_iters=1000, lambda_=0.0):
+    def __init__(self, lr=0.01, n_iters=1000, lambda_=0.0,
+                 early_stopping=False, patience=20, min_delta=1e-4):
         """
-        lr       : learning rate
-        n_iters  : number of gradient descent steps
-        lambda_  : L2 regularisation strength (0 = no regularisation)
+        lr             : learning rate
+        n_iters        : maximum number of gradient descent steps
+        lambda_        : L2 regularisation strength (0 = no regularisation)
+        early_stopping : if True, halt training when val loss stops improving
+        patience       : how many consecutive iterations without improvement
+                         before stopping (only used when early_stopping=True
+                         and validation data is supplied to fit())
+        min_delta      : minimum improvement in val loss to reset the patience
+                         counter (treats smaller changes as "no improvement")
         Store weights, bias, and loss_history list after fit().
         """
-        self.lr = lr
-        self.n_iters = n_iters
-        self.lambda_ = lambda_
-        self.weights = None         # w--> weights
-        self.bias = None            # b--->bias
-        self.loss_history = None
+        self.lr             = lr
+        self.n_iters        = n_iters
+        self.lambda_        = lambda_
+        self.early_stopping = early_stopping
+        self.patience       = patience
+        self.min_delta      = min_delta
+        self.weights = None         # w --> weights
+        self.bias    = None         # b --> bias
+        self.loss_history     = None
         self.val_loss_history = None
+        self.stopped_at       = None  # iteration at which training was halted
 
     def _sigmoid(self, z):
         """
@@ -55,31 +66,52 @@ class LogisticRegression:
             · gradients:    dw = X.T @ (y_hat - y) / n + lambda_ * w
             ·               db = mean(y_hat - y)
             · update:       w -= lr * dw,  b -= lr * db
+        - Early stopping: if early_stopping=True and X_val is provided,
+          training halts when val loss fails to improve by at least min_delta
+          for `patience` consecutive iterations.
         - Return self so you can chain .fit().predict()
         """
         self.weights = np.zeros(X.shape[1])
-        self.bias = 0
-        self.loss_history = []
+        self.bias    = 0
+        self.loss_history     = []
         self.val_loss_history = [] if X_val is not None else None
+        self.stopped_at       = self.n_iters  # default: ran to completion
 
         n = len(y)
+
+        # Early-stopping state
+        best_val_loss    = np.inf
+        patience_counter = 0
 
         for i in range(self.n_iters):
             # Forward pass
             y_hat = self._sigmoid(X @ self.weights + self.bias)
 
             # Training loss (BCE + L2 penalty)
-            bce = self._loss(y, y_hat)
+            bce       = self._loss(y, y_hat)
             l2_penalty = (self.lambda_ / 2) * np.sum(self.weights ** 2)
-            loss = bce + l2_penalty
+            loss       = bce + l2_penalty
             self.loss_history.append(loss)
 
             # Validation loss (if provided)
             if X_val is not None:
                 y_hat_val = self._sigmoid(X_val @ self.weights + self.bias)
-                val_bce = self._loss(y_val, y_hat_val)
-                # Val loss includes L2 too, so train vs val gap reflects pure fit
-                self.val_loss_history.append(val_bce + l2_penalty)
+                val_bce   = self._loss(y_val, y_hat_val)
+                val_loss  = val_bce + l2_penalty
+                self.val_loss_history.append(val_loss)
+
+                # Early stopping check
+                if self.early_stopping:
+                    if best_val_loss - val_loss > self.min_delta:
+                        best_val_loss    = val_loss
+                        patience_counter = 0
+                    else:
+                        patience_counter += 1
+                    if patience_counter >= self.patience:
+                        self.stopped_at = i + 1
+                        print(f"  [early stopping] halted at iteration {self.stopped_at} "
+                              f"(patience={self.patience}, min_delta={self.min_delta})")
+                        break
 
             # Gradients with L2 regularisation
             dw = X.T @ (y_hat - y) / n + self.lambda_ * self.weights
@@ -87,7 +119,7 @@ class LogisticRegression:
 
             # Update
             self.weights -= self.lr * dw
-            self.bias -= self.lr * db
+            self.bias    -= self.lr * db
 
         return self
 

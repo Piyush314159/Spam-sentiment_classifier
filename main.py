@@ -42,19 +42,22 @@ from src.preprocessing import (
     tokenize,
     build_vocabulary,
     vectorize_bow,
-    vectorize_tfidf,
+    fit_tfidf,
+    transform_tfidf,
     train_test_split,
 )
 from src.naive_bayes import NaiveBayes
 from src.logistic_regression import LogisticRegression
 from src.evaluation import (
     precision_recall_f1,
+    accuracy_score,
     roc_curve,
     auc,
     best_threshold,
     plot_roc,
     plot_loss_curve,
     print_report,
+    print_confusion_matrix,
 )
 
 # ── Paths ─────────────────────────────────────────────────────────────────────
@@ -107,8 +110,10 @@ X_train_bow = vectorize_bow(tokenized_train, vocab)
 X_test_bow  = vectorize_bow(tokenized_test,  vocab)
 
 # TF-IDF matrices (for Logistic Regression — normalised weights)
-X_train_tfidf = vectorize_tfidf(X_train_bow)
-X_test_tfidf  = vectorize_tfidf(X_test_bow)
+# IDF is fitted on TRAIN only, then applied to both splits (no data leakage).
+idf           = fit_tfidf(X_train_bow)
+X_train_tfidf = transform_tfidf(X_train_bow, idf)
+X_test_tfidf  = transform_tfidf(X_test_bow,  idf)
 
 print(f"\n  BoW   shape  — train: {X_train_bow.shape},   test: {X_test_bow.shape}")
 print(f"  TF-IDF shape — train: {X_train_tfidf.shape}, test: {X_test_tfidf.shape}")
@@ -132,6 +137,7 @@ print(f"  Best threshold (F1)  : {nb_thresh:.4f}  →  F1 = {nb_best_f1:.4f}")
 
 nb_preds = nb.predict(X_test_bow, threshold=nb_thresh)
 nb_precision, nb_recall, nb_f1 = precision_recall_f1(y_test, nb_preds)
+nb_accuracy = accuracy_score(y_test, nb_preds)
 
 nb_fpr, nb_tpr, _ = roc_curve(y_test, nb_proba)
 nb_auc            = auc(nb_fpr, nb_tpr)
@@ -139,17 +145,23 @@ nb_auc            = auc(nb_fpr, nb_tpr)
 print(f"  Precision : {nb_precision:.4f}")
 print(f"  Recall    : {nb_recall:.4f}")
 print(f"  F1        : {nb_f1:.4f}")
+print(f"  Accuracy  : {nb_accuracy:.4f}")
 print(f"  AUC       : {nb_auc:.4f}")
+
+print()
+print("  Confusion matrix (Naive Bayes):")
+print_confusion_matrix(y_test, nb_preds)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
 # STEP 3 — Logistic Regression
 # ─────────────────────────────────────────────────────────────────────────────
 print("\n" + "=" * 60)
-print("STEP 3 — Logistic Regression (lr=0.1, n_iters=500, lambda_=0.01)")
+print("STEP 3 — Logistic Regression (lr=0.1, n_iters=500, lambda_=0.01, early_stopping=True)")
 print("=" * 60)
 
-lr_model = LogisticRegression(lr=0.1, n_iters=500, lambda_=0.01)
+lr_model = LogisticRegression(lr=0.1, n_iters=500, lambda_=0.01,
+                               early_stopping=True, patience=20, min_delta=1e-4)
 lr_model.fit(
     X_train_tfidf, y_train,
     X_val=X_test_tfidf, y_val=y_test   # track val loss → diagnose overfitting
@@ -163,6 +175,7 @@ print(f"  Best threshold (F1)  : {lr_thresh:.4f}  →  F1 = {lr_best_f1:.4f}")
 
 lr_preds = lr_model.predict(X_test_tfidf, threshold=lr_thresh)
 lr_precision, lr_recall, lr_f1 = precision_recall_f1(y_test, lr_preds)
+lr_accuracy = accuracy_score(y_test, lr_preds)
 
 lr_fpr, lr_tpr, _ = roc_curve(y_test, lr_proba)
 lr_auc            = auc(lr_fpr, lr_tpr)
@@ -170,8 +183,13 @@ lr_auc            = auc(lr_fpr, lr_tpr)
 print(f"  Precision : {lr_precision:.4f}")
 print(f"  Recall    : {lr_recall:.4f}")
 print(f"  F1        : {lr_f1:.4f}")
+print(f"  Accuracy  : {lr_accuracy:.4f}")
 print(f"  AUC       : {lr_auc:.4f}")
 print(f"  Final train loss : {lr_model.loss_history[-1]:.4f}")
+
+print()
+print("  Confusion matrix (Logistic Regression):")
+print_confusion_matrix(y_test, lr_preds)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -180,11 +198,11 @@ print(f"  Final train loss : {lr_model.loss_history[-1]:.4f}")
 print("\n" + "=" * 60)
 print("STEP 4 — Model Comparison")
 print("=" * 60)
-header = f"{'Model':<20}  |  {'P':>6}  {'R':>6}  {'F1':>6}  {'AUC':>6}"
+header = f"{'Model':<20}  |  {'P':>6}  {'R':>6}  {'F1':>6}  {'Acc':>6}  {'AUC':>6}"
 print(header)
 print("-" * len(header))
-print_report("Naive Bayes",          nb_precision, nb_recall, nb_f1, nb_auc)
-print_report("Logistic Regression",  lr_precision, lr_recall, lr_f1, lr_auc)
+print_report("Naive Bayes",         nb_precision, nb_recall, nb_f1, nb_accuracy, nb_auc)
+print_report("Logistic Regression", lr_precision, lr_recall, lr_f1, lr_accuracy, lr_auc)
 
 # Quick human-readable commentary
 nb_wins_f1  = nb_f1  > lr_f1
@@ -226,6 +244,7 @@ metrics = {
         "precision" : nb_precision,
         "recall"    : nb_recall,
         "f1"        : nb_f1,
+        "accuracy"  : nb_accuracy,
         "auc"       : nb_auc,
     },
     "logistic_regression": {
@@ -233,6 +252,7 @@ metrics = {
         "precision"       : lr_precision,
         "recall"          : lr_recall,
         "f1"              : lr_f1,
+        "accuracy"        : lr_accuracy,
         "auc"             : lr_auc,
         "final_train_loss": lr_model.loss_history[-1],
     },

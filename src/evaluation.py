@@ -39,6 +39,37 @@ def precision_recall_f1(y_true, y_pred):
 
     return precision, recall, f1
 
+
+def accuracy_score(y_true, y_pred):
+    """
+    Fraction of correctly classified samples.
+    - Accuracy = (TP + TN) / (TP + TN + FP + FN)
+    - Returns scalar float in [0, 1]
+    """
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+    return float((y_true == y_pred).sum() / len(y_true))
+
+
+def print_confusion_matrix(y_true, y_pred):
+    """
+    Pretty-print a 2×2 confusion matrix to stdout.
+
+    Format
+    ------
+                  Predicted
+                  Ham   Spam
+    Actual Ham  [  TN    FP  ]
+           Spam [  FN    TP  ]
+    """
+    cm = confusion_matrix(y_true, y_pred)
+    tn, fp = cm[0][0], cm[0][1]
+    fn, tp = cm[1][0], cm[1][1]
+    print(f"                Predicted")
+    print(f"                Ham    Spam")
+    print(f"  Actual Ham  [{tn:5d}  {fp:5d} ]")
+    print(f"  Actual Spam [{fn:5d}  {tp:5d} ]")
+
 def roc_curve(y_true, y_scores):
     """
     Compute the full ROC curve by sweeping thresholds.
@@ -91,7 +122,9 @@ def auc(fpr, tpr):
     tpr = tpr[order]  # reorder tpr the same way
     # it will keep point pairs(fpr, tpr) intact
 
-    auc_val = float(np.trapz(tpr, fpr))
+    # np.trapz was removed in NumPy 2.0; np.trapezoid is the modern name.
+    _trapz = getattr(np, "trapezoid", None) or np.trapz
+    auc_val = float(_trapz(tpr, fpr))
     return auc_val
 
 def best_threshold(y_true, y_scores, metric='f1'):
@@ -202,13 +235,14 @@ def plot_loss_curve(loss_history, save_path, val_loss_history=None):
     plt.close(fig)
     print(f"[plot_loss_curve] saved → {save_path}")
 
-def print_report(model_name, precision, recall, f1, auc_score):
+def print_report(model_name, precision, recall, f1, accuracy, auc_score):
     """
     Pretty-print a one-line summary for a model.
-    - Format: "ModelName  |  P: 0.xx  R: 0.xx  F1: 0.xx  AUC: 0.xx"
+    - Format: "ModelName  |  P: 0.xx  R: 0.xx  F1: 0.xx  Acc: 0.xx  AUC: 0.xx"
     """
     print(f"{model_name:<20s}  |  "
           f"P: {precision:.4f}  "
           f"R: {recall:.4f}  "
           f"F1: {f1:.4f}  "
+          f"Acc: {accuracy:.4f}  "
           f"AUC: {auc_score:.4f}")
