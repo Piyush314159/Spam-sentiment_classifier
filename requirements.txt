@@ -1,3 +1,4 @@
-numpy>=1.24
-pandas>=1.5
-matplotlib>=3.6
+# Core dependencies — everything built from scratch, no sklearn
+numpy>=1.24,<3.0        # 1.24 → 2.x all work; auc() handles trapz/trapezoid rename
+pandas>=1.5,<3.0        # for load_data() only (CSV parsing)
+matplotlib>=3.6,<4.0    # for ROC and loss-curve plots

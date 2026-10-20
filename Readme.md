@@ -13,11 +13,12 @@ No magic libraries. No black boxes. Just math, numpy, and your own two hands.
 
 | Metric | Naive Bayes | Logistic Regression |
 |--------|:-----------:|:-------------------:|
-| **Precision** | 0.9924 | 0.8188 |
-| **Recall** | 0.9097 | 0.9097 |
-| **F1 Score** | **0.9493** ✅ | 0.8618 |
-| **AUC** | 0.9786 | **0.9823** ✅ |
-| **Best Threshold** | 0.7762 | 0.1511 |
+| **Precision** | 0.9924 | 0.8323 |
+| **Recall** | 0.9097 | 0.8958 |
+| **F1 Score** | **0.9493** ✅ | 0.8629 |
+| **Accuracy** | 0.9874 | 0.9632 |
+| **AUC** | 0.9786 | **0.9821** ✅ |
+| **Best Threshold** | 0.7762 | 0.1488 |
 
 > **Key insight:** Naive Bayes wins on **F1** (better precision at its optimal threshold), while Logistic Regression edges ahead on **AUC** (better ranking quality across all thresholds). Different metrics, different winners — and that's exactly the trade-off you'll learn to reason about.
 
@@ -109,7 +110,7 @@ LogisticRegression(lr=0.1, n_iters=500).fit(X_train_tfidf, y_train)
 
 - Trained on **TF-IDF weights** (normalised, downweights common words)
 - Same evaluation flow as Naive Bayes
-- `loss_history` saved for the training loss curve (final loss: **0.3555**)
+- `loss_history` saved for the training loss curve (final loss: **0.3706**)
 
 ### Step 4 — Compare
 
@@ -244,8 +245,8 @@ You'll see the full 5-step output in the terminal:
 =================================================================
   STEP 4 — Compare (side by side)
 =================================================================
-Naive Bayes           |  P: 0.9924  R: 0.9097  F1: 0.9493  AUC: 0.9786
-Logistic Regression   |  P: 0.8187  R: 0.9097  F1: 0.8618  AUC: 0.9823
+Naive Bayes           |  P: 0.9924  R: 0.9097  F1: 0.9493  Acc: 0.9874  AUC: 0.9786
+Logistic Regression   |  P: 0.8323  R: 0.8958  F1: 0.8629  Acc: 0.9632  AUC: 0.9821
   ...
 =================================================================
   Done. Check results/ for plots and metrics.
