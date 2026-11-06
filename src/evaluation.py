@@ -222,12 +222,12 @@ def plot_loss_curve(loss_history, save_path, val_loss_history=None):
     if val_loss_history is not None:
         val_iters = np.arange(1, len(val_loss_history) + 1)
         ax.plot(val_iters, val_loss_history, color='steelblue', lw=2,
-                linestyle='--', label='Test loss')
+                linestyle='--', label='Validation loss')
         ax.legend(fontsize=10)
 
     ax.set_xlabel('Iteration', fontsize=12)
     ax.set_ylabel('Loss (BCE + L2)', fontsize=12)
-    ax.set_title('Logistic Regression — Train vs Test Loss', fontsize=13)
+    ax.set_title('Logistic Regression — Train vs Validation Loss', fontsize=13)
     ax.grid(True, alpha=0.3)
 
     fig.tight_layout()

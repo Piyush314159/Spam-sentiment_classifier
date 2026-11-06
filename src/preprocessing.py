@@ -12,7 +12,6 @@ fit_tfidf(bow_matrix)                  → np.ndarray  (vocab_size,)  ← IDF ve
 transform_tfidf(bow_matrix, idf)       → np.ndarray  (n_docs, vocab_size)
 train_test_split(X, y, ...)            → X_train, X_test, y_train, y_test
 """
-import pandas as pd
 import numpy as np
 from collections import Counter
 import string
@@ -29,20 +28,16 @@ STOPWORDS = {
 
 def load_data(filepath):
     """
-    Load the TSV file into a dataframe.
-    - Read sms.tsv (tab-separated, columns: label, message)
-    - Map 'ham' → 0, 'spam' → 1
+    Load messages from SQL, importing a changed TSV snapshot when needed.
+    - Preserve original row order, duplicates, and ham=0 / spam=1 labels
     - Return (texts, labels) as lists
     """
-    df = pd.read_csv(
-        filepath,
-        sep= '\t',
-        header= None,
-        usecols= [0,1],
-        names= ['label', 'message']
-    )
-    df['label'] = df['label'].map({'ham' : 0, 'spam': 1 })
-    return df['message'].tolist(), df['label'].tolist()     #returns a list of texts, label
+    if __package__:
+        from .database import load_corpus
+    else:  # Preserve direct execution: python src/preprocessing.py
+        from database import load_corpus
+    corpus = load_corpus(filepath)
+    return corpus.texts, corpus.labels
 
 def clean_text(text):
     """

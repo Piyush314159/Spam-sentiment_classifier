@@ -82,6 +82,7 @@ class LogisticRegression:
         # Early-stopping state
         best_val_loss    = np.inf
         patience_counter = 0
+        best_weights, best_bias = None, None
 
         for i in range(self.n_iters):
             # Forward pass
@@ -104,6 +105,8 @@ class LogisticRegression:
                 if self.early_stopping:
                     if best_val_loss - val_loss > self.min_delta:
                         best_val_loss    = val_loss
+                        best_weights = self.weights.copy()
+                        best_bias = self.bias
                         patience_counter = 0
                     else:
                         patience_counter += 1
@@ -121,6 +124,8 @@ class LogisticRegression:
             self.weights -= self.lr * dw
             self.bias    -= self.lr * db
 
+        if self.early_stopping and best_weights is not None:
+            self.weights, self.bias = best_weights, best_bias
         return self
 
     def predict_proba(self, X):

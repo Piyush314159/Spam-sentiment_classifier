@@ -1,19 +1,31 @@
 {
+  "evaluation": {
+    "protocol": "train_validation_test_v2",
+    "split_seeds": [
+      42,
+      43
+    ],
+    "train_samples": 3565,
+    "validation_samples": 892,
+    "test_samples": 1115,
+    "selection_data": "validation only",
+    "limitation": "The test partition was inspected in earlier experiments; use a new external holdout for final confirmation."
+  },
   "naive_bayes": {
-    "threshold": 0.776157584145764,
-    "precision": 0.9924242424242424,
-    "recall": 0.9097222222222222,
-    "f1": 0.9492753623188407,
-    "accuracy": 0.9874439461883409,
-    "auc": 0.9786123984437578
+    "threshold": 0.5898824343470378,
+    "precision": 0.9558823529411765,
+    "recall": 0.9027777777777778,
+    "f1": 0.9285714285714286,
+    "accuracy": 0.9820627802690582,
+    "auc": 0.9770997825838198
   },
   "logistic_regression": {
-    "threshold": 0.14881137484942253,
-    "precision": 0.832258064516129,
-    "recall": 0.8958333333333334,
-    "f1": 0.8628762541806021,
-    "accuracy": 0.9632286995515695,
-    "auc": 0.9820917725140176,
-    "final_train_loss": 0.3705952398542196
+    "threshold": 0.15011140534447562,
+    "precision": 0.7926829268292683,
+    "recall": 0.9027777777777778,
+    "f1": 0.8441558441558441,
+    "accuracy": 0.95695067264574,
+    "auc": 0.9810619063966128,
+    "final_train_loss": 0.37426117253875707
   }
 }

@@ -28,7 +28,8 @@ Steps
 5. Save outputs
       - plot_roc(...)        →  results/roc_curve.png
       - plot_loss_curve(...) →  results/loss_curve.png
-      - Optionally dump metrics to results/metrics.json
+      - Store evaluation and per-message predictions in SQLite
+      - Export metrics to results/metrics.json
 """
 
 import os
@@ -37,7 +38,6 @@ import numpy as np
 
 # ── src imports ──────────────────────────────────────────────────────────────
 from src.preprocessing import (
-    load_data,
     clean_text,
     tokenize,
     build_vocabulary,
@@ -48,6 +48,7 @@ from src.preprocessing import (
 )
 from src.naive_bayes import NaiveBayes
 from src.logistic_regression import LogisticRegression
+from src.database import load_corpus, save_evaluation
 from src.evaluation import (
     precision_recall_f1,
     accuracy_score,
@@ -77,7 +78,8 @@ print("=" * 60)
 print("STEP 1 — Loading and preprocessing data")
 print("=" * 60)
 
-texts, labels = load_data(DATA_PATH)
+corpus = load_corpus(DATA_PATH)
+texts, labels = corpus.texts, corpus.labels
 print(f"  Total messages loaded : {len(texts)}")
 print(f"  Spam count            : {sum(labels)}")
 print(f"  Ham  count            : {len(labels) - sum(labels)}")
@@ -96,23 +98,32 @@ labels_np = np.array(labels)
 tokenized_train, tokenized_test, y_train, y_test = train_test_split(
     tokenized, labels_np, test_size=0.2, seed=42
 )
+# Preserve the original test partition; reserve 20% of the remaining data
+# for early stopping and threshold selection (64/16/20 overall).
+tokenized_train, tokenized_val, y_train, y_val = train_test_split(
+    tokenized_train, y_train, test_size=0.2, seed=43
+)
 tokenized_train = tokenized_train.tolist()
+tokenized_val = tokenized_val.tolist()
 tokenized_test  = tokenized_test.tolist()
 
 # Build vocabulary from TRAIN only (no data leakage)
 vocab = build_vocabulary(tokenized_train)
 print(f"\n  Vocabulary size (train) : {len(vocab)}")
 print(f"  Train samples           : {len(y_train)}")
+print(f"  Validation samples      : {len(y_val)}")
 print(f"  Test  samples           : {len(y_test)}")
 
 # BoW matrices (for Naive Bayes — raw counts)
 X_train_bow = vectorize_bow(tokenized_train, vocab)
+X_val_bow = vectorize_bow(tokenized_val, vocab)
 X_test_bow  = vectorize_bow(tokenized_test,  vocab)
 
 # TF-IDF matrices (for Logistic Regression — normalised weights)
 # IDF is fitted on TRAIN only, then applied to both splits (no data leakage).
 idf           = fit_tfidf(X_train_bow)
 X_train_tfidf = transform_tfidf(X_train_bow, idf)
+X_val_tfidf = transform_tfidf(X_val_bow, idf)
 X_test_tfidf  = transform_tfidf(X_test_bow,  idf)
 
 print(f"\n  BoW   shape  — train: {X_train_bow.shape},   test: {X_test_bow.shape}")
@@ -129,12 +140,11 @@ print("=" * 60)
 nb = NaiveBayes(alpha=1.0)
 nb.fit(X_train_bow, y_train)
 
-nb_proba = nb.predict_proba(X_test_bow)
-
-# Tune decision threshold to maximise F1
-nb_thresh, nb_best_f1 = best_threshold(y_test, nb_proba, metric='f1')
+nb_val_proba = nb.predict_proba(X_val_bow)
+nb_thresh, nb_best_f1 = best_threshold(y_val, nb_val_proba, metric='f1')
 print(f"  Best threshold (F1)  : {nb_thresh:.4f}  →  F1 = {nb_best_f1:.4f}")
 
+nb_proba = nb.predict_proba(X_test_bow)
 nb_preds = nb.predict(X_test_bow, threshold=nb_thresh)
 nb_precision, nb_recall, nb_f1 = precision_recall_f1(y_test, nb_preds)
 nb_accuracy = accuracy_score(y_test, nb_preds)
@@ -164,15 +174,14 @@ lr_model = LogisticRegression(lr=0.1, n_iters=500, lambda_=0.01,
                                early_stopping=True, patience=20, min_delta=1e-4)
 lr_model.fit(
     X_train_tfidf, y_train,
-    X_val=X_test_tfidf, y_val=y_test   # track val loss → diagnose overfitting
+    X_val=X_val_tfidf, y_val=y_val
 )
 
-lr_proba = lr_model.predict_proba(X_test_tfidf)
-
-# Tune decision threshold to maximise F1
-lr_thresh, lr_best_f1 = best_threshold(y_test, lr_proba, metric='f1')
+lr_val_proba = lr_model.predict_proba(X_val_tfidf)
+lr_thresh, lr_best_f1 = best_threshold(y_val, lr_val_proba, metric='f1')
 print(f"  Best threshold (F1)  : {lr_thresh:.4f}  →  F1 = {lr_best_f1:.4f}")
 
+lr_proba = lr_model.predict_proba(X_test_tfidf)
 lr_preds = lr_model.predict(X_test_tfidf, threshold=lr_thresh)
 lr_precision, lr_recall, lr_f1 = precision_recall_f1(y_test, lr_preds)
 lr_accuracy = accuracy_score(y_test, lr_preds)
@@ -239,6 +248,15 @@ plot_loss_curve(
 
 # Metrics JSON dump
 metrics = {
+    "evaluation": {
+        "protocol": "train_validation_test_v2",
+        "split_seeds": [42, 43],
+        "train_samples": len(y_train),
+        "validation_samples": len(y_val),
+        "test_samples": len(y_test),
+        "selection_data": "validation only",
+        "limitation": "The test partition was inspected in earlier experiments; use a new external holdout for final confirmation.",
+    },
     "naive_bayes": {
         "threshold" : nb_thresh,
         "precision" : nb_precision,
@@ -257,6 +275,15 @@ metrics = {
         "final_train_loss": lr_model.loss_history[-1],
     },
 }
+
+# Replay the same seeded split on row positions to link each held-out score
+# to its original SQL message, without changing the existing model inputs.
+_, test_positions, _, _ = train_test_split(np.arange(len(texts)), labels_np, seed=42)
+run_id = save_evaluation(corpus, metrics, test_positions, {
+    "naive_bayes": (nb_proba, nb_preds),
+    "logistic_regression": (lr_proba, lr_preds),
+})
+print(f"[database]      saved evaluation {run_id} → {corpus.database_path}")
 
 with open(METRICS_PATH, "w") as f:
     json.dump(metrics, f, indent=2)
